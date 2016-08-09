@@ -1,3 +1,9 @@
+/* This is a modified version of the GSL's file. 
+ * We get fewer fit failures this way.
+ * Do "diff -u simplex2.c.orig simplex2.c" to see the changes.
+ * A. Gaponenko, 2011.
+ */
+
 /* multimin/simplex2.c
  * 
  * Copyright (C) 2007, 2008, 2009 Brian Gough
@@ -37,11 +43,29 @@
    This implementation uses n+1 corner points in the simplex.
 */
 
-#include <config.h>
+
+/* #include <config.h>  */
+#include <sys/types.h>
+
 #include <stdlib.h>
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_multimin.h>
 #include <gsl/gsl_matrix_double.h>
+
+/* AG: */
+int ag_gsl_debug;
+
+#define AGDEBUG(op) do { if(ag_gsl_debug) { fprintf(stderr, "AGGSL: %s %d: ", __FILE__, __LINE__); (op); fprintf(stderr, "\n"); } } while(0)
+
+void ag_vector_fprintf(const char *msg, const gsl_vector* v) {
+  int i;
+
+  fprintf(stderr, "%s", msg);
+  for(i=0; i<v->size; ++i) {
+    fprintf(stderr, "%g ", gsl_vector_get(v, i));
+  }
+  fprintf(stderr, "\n");
+}
 
 typedef struct
 {
@@ -417,6 +441,7 @@ static int
 nmsimplex_iterate (void *vstate, gsl_multimin_function * f,
 		   gsl_vector * x, double *size, double *fval)
 {
+  AGDEBUG(fprintf(stderr, "nmsimplex_iterate() begin 5"));
 
   /* Simplex iteration tries to minimize function f value */
   /* Includes corrections from Ivo Alxneit <ivo.alxneit@psi.ch> */
@@ -436,6 +461,12 @@ nmsimplex_iterate (void *vstate, gsl_multimin_function * f,
   double dhi, ds_hi, dlo;
   int status;
   double val, val2;
+
+  if(ag_gsl_debug) {
+    ag_vector_fprintf("xc = ", xc);
+    ag_vector_fprintf("xc2 = ", xc2);
+    ag_vector_fprintf("y1 = ", y1);
+  }
 
   if (xc->size != x->size)
     {
@@ -477,30 +508,40 @@ nmsimplex_iterate (void *vstate, gsl_multimin_function * f,
 
   val = try_corner_move (-1.0, state, hi, xc, f);
 
+  AGDEBUG(fprintf(stderr, "nmsimplex_iterate(): lo [%u] = %g, s_hi [%u] = %g, hi [%u] = %g, val = %g",
+		  lo, dlo, s_hi, ds_hi, hi, dhi, val)); 
+ 
   if (gsl_finite (val) && val < gsl_vector_get (y1, lo))
     {
+      AGDEBUG(fprintf(stderr, "nmsimplex_iterate(): corner move 1 ok"));
       /* reflected point is lowest, try expansion */
 
       val2 = try_corner_move (-2.0, state, hi, xc2, f);
 
       if (gsl_finite (val2) && val2 < gsl_vector_get (y1, lo))
 	{
+	  AGDEBUG(fprintf(stderr, "nmsimplex_iterate(): corner move 2 ok"));
 	  update_point (state, hi, xc2, val2);
 	}
       else
 	{
+	  AGDEBUG(fprintf(stderr, "nmsimplex_iterate(): corner move 2 failed"));
 	  update_point (state, hi, xc, val);
 	}
     }
-  else if (!gsl_finite (val) || val > gsl_vector_get (y1, s_hi))
+  else if (!gsl_finite (val) || val >= gsl_vector_get (y1, s_hi))
     {
       /* reflection does not improve things enough, or we got a
          non-finite function value */
 
-      if (gsl_finite (val) && val <= gsl_vector_get (y1, hi))
+      AGDEBUG(fprintf(stderr, "nmsimplex_iterate(): reflection did not work"));
+
+      if (gsl_finite (val) && val < gsl_vector_get (y1, hi))
 	{
 	  /* if trial point is better than highest point, replace
 	     highest point */
+
+	  AGDEBUG(fprintf(stderr, "nmsimplex_iterate(): replace highest point"));
 
 	  update_point (state, hi, xc, val);
 	}
@@ -509,14 +550,16 @@ nmsimplex_iterate (void *vstate, gsl_multimin_function * f,
 
       val2 = try_corner_move (0.5, state, hi, xc2, f);
 
-      if (gsl_finite (val2) && val2 <= gsl_vector_get (y1, hi))
+      if (gsl_finite (val2) && val2 < gsl_vector_get (y1, hi))
 	{
+	  AGDEBUG(fprintf(stderr, "nmsimplex_iterate(): 1-d contraction: val2 = %g, dhi = %g (diff = %g)", val2, gsl_vector_get(y1, hi), val2 - gsl_vector_get(y1, hi)));
 	  update_point (state, hi, xc2, val2);
 	}
       else
 	{
 	  /* contract the whole simplex about the best point */
 
+	  AGDEBUG(fprintf(stderr, "nmsimplex_iterate(): contraction by best"));
 	  status = contract_by_best (state, lo, xc, f);
 
 	  if (status != GSL_SUCCESS)
@@ -529,6 +572,8 @@ nmsimplex_iterate (void *vstate, gsl_multimin_function * f,
     {
       /* trial point is better than second highest point.  Replace
          highest point by it */
+
+      AGDEBUG(fprintf(stderr, "nmsimplex_iterate(): reflection: better than 2nd highest"));
 
       update_point (state, hi, xc, val);
     }
@@ -546,14 +591,18 @@ nmsimplex_iterate (void *vstate, gsl_multimin_function * f,
 
     if (S2 > 0)
       {
+	AGDEBUG(fprintf(stderr, "nmsimplex_iterate(): size from S2"));
 	*size = sqrt (S2);
       }
     else
       {
+	AGDEBUG(fprintf(stderr, "nmsimplex_iterate(): recompute size"));
 	/* recompute if accumulated error has made size invalid */
 	*size = compute_size (state, state->center);
       }
   }
+
+  AGDEBUG(fprintf(stderr, "nmsimplex_iterate() end"));
 
   return GSL_SUCCESS;
 }

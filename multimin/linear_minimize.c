@@ -7,6 +7,8 @@
  * polynomial is q(x) = f0 + fp0 * z + (f1-f0-fp0) * z^2
  */
 
+#define AGDEBUG(op) do { if(1) { fprintf(stderr, "AGGSL: %s %d: ", __FILE__, __LINE__); (op); fprintf(stderr, "\n"); } } while(0)
+
 static double
 interp_quad (double f0, double fp0, double f1, double zl, double zh)
 {
@@ -212,6 +214,10 @@ minimize (gsl_function_fdf * fn, double rho, double sigma,
       falpha = GSL_FN_FDF_EVAL_F (fn, alpha);
       
       if ((a-alpha)*fpa <= GSL_DBL_EPSILON) {
+	AGDEBUG(fprintf(stderr, "a=%g alpha=%g, fpa=%g, diff=%g, times=%g eps=%g",
+			a, alpha, fpa, a-alpha, (a-alpha)*fpa, GSL_DBL_EPSILON
+			));
+
         /* roundoff prevents progress */
         return GSL_ENOPROG;
       };

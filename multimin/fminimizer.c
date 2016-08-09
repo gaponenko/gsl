@@ -21,11 +21,18 @@
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_multimin.h>
 
+#include <stdio.h>
+
 gsl_multimin_fminimizer *
 gsl_multimin_fminimizer_alloc (const gsl_multimin_fminimizer_type * T,
                                size_t n)
 {
   int status;
+  static int printed;
+  if(!printed) {
+    printf("AG: Using gsl_multimin_fminimizer_alloc() from the custom GSL install\n");
+    printed = 1;
+  }
 
   gsl_multimin_fminimizer *s =
     (gsl_multimin_fminimizer *) malloc (sizeof (gsl_multimin_fminimizer));
